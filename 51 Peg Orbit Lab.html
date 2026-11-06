@@ -1,0 +1,992 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>51 Peg Orbit Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Layout: one working screen. Left = scene tabs, live 3D scene, experiment sliders, Table 1 / Table 2. Right = Figs 2, 3, 4 drawn on one canvas so points can fly between figures. Bottom = transport with step mode. --u scales type for presenter mode. */
+:root{
+  --u:1;
+  --bg:#e8ecf1; --surface:#ffffff; --surface2:#f1f4f8; --text:#13202c; --muted:#5a6878; --line:#cdd5de;
+  --accent:#14708f; --accent-ink:#ffffff;
+  --c1:#2f6fbf; --c2:#d98324; --c3:#2f8a5a; --c4:#c4372f;
+  --space:#04060b; --scene-text:#dbe4ee; --scene-muted:#8fa1b6; --scene-panel:rgba(8,12,20,.72);
+  --font-ui:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --font-mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0c1219; --surface:#141c26; --surface2:#1a2430; --text:#e3eaf1; --muted:#93a1b1; --line:#2a3644;
+    --accent:#4cb6d8; --accent-ink:#06222c;
+    --c1:#5b9be0; --c2:#f0a040; --c3:#4fb583; --c4:#ef6a5f;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0c1219; --surface:#141c26; --surface2:#1a2430; --text:#e3eaf1; --muted:#93a1b1; --line:#2a3644;
+  --accent:#4cb6d8; --accent-ink:#06222c;
+  --c1:#5b9be0; --c2:#f0a040; --c3:#4fb583; --c4:#ef6a5f;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{
+  margin:0; background:var(--bg); color:var(--text); font-family:var(--font-ui); font-size:calc(14px*var(--u)); line-height:1.4;
+  display:flex; flex-direction:column; gap:10px;
+  padding-block:10px;
+  padding-left:max(16px, env(safe-area-inset-left, 0px));
+  padding-right:max(16px, env(safe-area-inset-right, 0px));
+}
+button,input,select{font:inherit;color:inherit}
+button:disabled,input:disabled{opacity:.4;cursor:not-allowed}
+.top{display:flex;align-items:center;gap:6px 16px;flex-wrap:wrap;justify-content:space-between}
+.top h1{margin:0;font-size:calc(18px*var(--u));font-weight:600;letter-spacing:.01em;text-wrap:balance}
+.top .sub{margin:0;color:var(--muted);font-size:calc(12.5px*var(--u))}
+.topr{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.badge{font-family:var(--font-mono);font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);border:1px solid var(--line);border-radius:4px;padding:3px 7px;background:var(--surface)}
+.pill{border:1px solid var(--line);background:var(--surface);border-radius:5px;padding:4px 10px;cursor:pointer;font-size:calc(12.5px*var(--u))}
+.pill[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.grid{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
+.left{min-height:0;min-width:0;display:flex;flex-direction:column;gap:8px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:6px}
+.seg{display:flex;border:1px solid var(--line);border-radius:5px;overflow:hidden;flex-wrap:wrap}
+.seg button{border:0;background:var(--surface2);padding:5px 10px;cursor:pointer;font-size:calc(12.5px*var(--u));border-right:1px solid var(--line)}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
+.tabs{align-self:flex-start;max-width:100%}
+.scene{position:relative;flex:1;min-height:240px;overflow:hidden;background:var(--space);border-color:#1c2735}
+#scene{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab}
+#scene:active{cursor:grabbing}
+.ov{position:absolute;pointer-events:none;color:var(--scene-text);font-size:calc(12px*var(--u))}
+.hud{left:12px;top:10px;background:var(--scene-panel);padding:8px 10px;border-radius:4px;min-width:calc(196px*var(--u))}
+.hud .date{font-family:var(--font-mono);font-size:calc(15px*var(--u));font-weight:500}
+.hud .ep{color:var(--scene-muted);font-size:calc(11.5px*var(--u));margin-top:1px}
+.hud .vr{font-family:var(--font-mono);font-size:calc(12.5px*var(--u));margin-top:5px;font-variant-numeric:tabular-nums}
+.hud .n{font-family:var(--font-mono);font-size:calc(11.5px*var(--u));color:var(--scene-muted);font-variant-numeric:tabular-nums}
+.dop{right:12px;top:10px;background:var(--scene-panel);padding:6px 8px;border-radius:4px;text-align:right}
+.dop span{display:block;color:var(--scene-muted);font-size:calc(10.5px*var(--u));letter-spacing:.03em;margin-bottom:2px}
+.dop canvas{display:block;width:calc(170px*var(--u));height:calc(46px*var(--u))}
+.lbl{color:var(--scene-text);font-size:calc(11.5px*var(--u));white-space:nowrap;transform:translate(-50%,-100%);text-shadow:0 0 4px #000,0 0 2px #000}
+.flash{inset:0;background:#fff;opacity:0}
+.scale{left:calc(24px + 196px*var(--u));right:calc(24px + 232px*var(--u));top:12px;color:var(--scene-muted);font-size:calc(10.5px*var(--u));text-align:center;line-height:1.3}
+.leg{left:12px;top:10px;background:var(--scene-panel);padding:8px 10px;border-radius:4px;display:grid;grid-template-columns:auto auto auto auto;gap:3px 12px;align-items:center;font-size:calc(12px*var(--u))}
+.leg i{display:block;width:9px;height:9px;border-radius:50%}
+.leg b{font-family:var(--font-mono);font-weight:400;font-variant-numeric:tabular-nums;text-align:right}
+.leg .h{grid-column:1/-1;color:var(--scene-muted);font-size:calc(10.5px*var(--u));letter-spacing:.03em}
+.cal{left:12px;right:12px;bottom:calc(62px*var(--u));height:34px}
+.cal canvas{width:100%;height:100%;display:block}
+.cap{left:12px;right:12px;bottom:8px;background:var(--scene-panel);padding:6px 10px;border-radius:4px;font-size:calc(12.5px*var(--u));min-height:34px;line-height:1.35}
+.tools{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;padding:6px 10px;background:var(--surface);border:1px solid var(--line);border-radius:6px}
+.incl{display:flex;align-items:center;gap:8px;flex:1 1 300px;min-width:min(100%,300px)}
+.incl input{flex:1;min-width:90px;accent-color:var(--accent)}
+.incl output{font-family:var(--font-mono);font-size:calc(12px*var(--u));white-space:nowrap;font-variant-numeric:tabular-nums}
+.tools label{font-size:calc(12.5px*var(--u));color:var(--muted);white-space:nowrap}
+.tbl{padding:8px 10px}
+.tbl h2{margin:0 0 4px;font-size:calc(12px*var(--u));font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.tpair{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:0 18px}
+.tbl table{width:100%;border-collapse:collapse;font-size:calc(12.5px*var(--u))}
+.tbl th,.tbl td{text-align:left;padding:2px 8px 2px 0;border-bottom:1px solid var(--line);white-space:nowrap}
+.tbl th{font-weight:500;color:var(--muted);font-size:calc(11.5px*var(--u))}
+.tbl td.v{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+.tbl tbody tr:last-child td{border-bottom:0}
+.tbl .wrap{overflow-x:auto}
+.tbl .note{margin:5px 0 0;color:var(--muted);font-size:calc(11px*var(--u));line-height:1.35}
+.right{position:relative;min-height:0;min-width:0;overflow:hidden}
+#plots{position:absolute;inset:0;width:100%;height:100%;display:block}
+.controls{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center;padding:8px 10px;background:var(--surface);border:1px solid var(--line);border-radius:6px}
+.controls .btn{border:1px solid var(--line);background:var(--surface2);border-radius:5px;padding:6px 12px;cursor:pointer;min-width:72px;font-size:calc(13.5px*var(--u))}
+.controls .btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:500;min-width:84px}
+.controls input[type=range]{flex:1 1 180px;min-width:120px;accent-color:var(--accent)}
+.controls .time{font-family:var(--font-mono);font-size:calc(12px*var(--u));min-width:calc(122px*var(--u));font-variant-numeric:tabular-nums;color:var(--muted)}
+.controls select{background:var(--surface2);border:1px solid var(--line);border-radius:5px;padding:5px 6px;font-size:calc(13px*var(--u))}
+.hint{color:var(--muted);font-size:calc(11.5px*var(--u))}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+body.pres .sub,body.pres .hint{display:none}
+@media (max-width:980px){
+  html,body{height:auto}
+  body{display:block}
+  body>*+*{margin-top:10px}
+  .grid{display:flex;flex-direction:column}
+  .scene{min-height:470px;flex:none}
+  .right{height:860px;flex:none}
+  .hud{min-width:0}
+  .dop span{display:none}
+  .dop canvas{width:92px;height:40px}
+  .cal{bottom:116px}
+  .scale{display:none}
+}
+@media (prefers-reduced-motion:reduce){.flash{display:none}}
+</style>
+
+<header class="top">
+  <div>
+    <h1>51 Peg Orbit Lab</h1>
+    <p class="sub">Mayor &amp; Queloz 1995, discovery and orbital analysis: Figs. 2–4 and Tables 1–2, built live from one simulated observing campaign</p>
+  </div>
+  <div class="topr">
+    <span class="badge">Synthetic data from Table 1 parameters</span>
+    <button type="button" class="pill" id="presBtn" aria-pressed="false" title="Larger type for a projector">Presenter mode</button>
+    <button type="button" class="pill" id="fsBtn" hidden>Fullscreen</button>
+  </div>
+</header>
+
+<main class="grid">
+  <section class="left">
+    <div class="seg tabs" role="group" aria-label="Scene">
+      <button type="button" id="mOrbit" aria-pressed="true">Orbit</button>
+      <button type="button" id="mSun" aria-pressed="false">51 Peg vs Sun (Table 2)</button>
+      <button type="button" id="mScale" aria-pressed="false">Orbits to scale</button>
+    </div>
+    <div class="card scene" id="sceneWrap">
+      <canvas id="scene" aria-label="3D view"></canvas>
+      <div class="ov flash" id="flash"></div>
+      <div class="ov hud" id="hud">
+        <div class="date" id="hDate">3 Sep 1994</div>
+        <div class="ep" id="hEp">Epoch 1</div>
+        <div class="vr" id="hVr">V_r = 0 m/s</div>
+        <div class="n" id="hN">N = 0 / 35</div>
+      </div>
+      <div class="ov dop" id="dopBox"><span>Doppler shift of the lines (exaggerated)</span><canvas id="dop"></canvas></div>
+      <div class="ov leg" id="leg" hidden>
+        <span class="h" style="grid-column:1/-1">Orbit radius to scale · period</span>
+        <i style="background:#ff7a45"></i><span>51 Peg b</span><b>0.05 AU</b><b>4.2 d</b>
+        <i style="background:#9a9a9a"></i><span>Mercury</span><b>0.39 AU</b><b>88 d</b>
+        <i style="background:#e3b66a"></i><span>Venus</span><b>0.72 AU</b><b>225 d</b>
+        <i style="background:#3d9bff"></i><span>Earth</span><b>1.00 AU</b><b>365 d</b>
+      </div>
+      <div class="ov scale" id="hScale"></div>
+      <div class="ov cal" id="calBox"><canvas id="cal"></canvas></div>
+      <div class="ov cap" id="cap"></div>
+    </div>
+    <div class="tools">
+      <div class="seg" role="group" aria-label="Camera view">
+        <button type="button" id="vFree" aria-pressed="true">Free view</button>
+        <button type="button" id="vObs" aria-pressed="false">Observer's view</button>
+        <button type="button" id="vTop" aria-pressed="false">Top view</button>
+      </div>
+    </div>
+    <div class="tools">
+      <div class="incl">
+        <label for="drift">Injected γ drift</label>
+        <input type="range" id="drift" min="0" max="2.5" step="0.1" value="1.5">
+        <output id="driftOut" for="drift"></output>
+      </div>
+      <div class="incl">
+        <label for="ecc">True eccentricity e</label>
+        <input type="range" id="ecc" min="0" max="0.4" step="0.01" value="0">
+        <output id="eccOut" for="ecc"></output>
+      </div>
+    </div>
+    <div class="card tbl">
+      <div id="tab1">
+        <h2>Table 1 · orbital parameters</h2>
+        <div class="tpair">
+          <div class="wrap"><table>
+            <thead><tr><th>Parameter</th><th>Simulation</th><th>Paper</th></tr></thead>
+            <tbody>
+              <tr><td>P (d)</td><td class="v" id="tP">—</td><td class="v">4.2293 ± 0.0011</td></tr>
+              <tr><td>K₁ (m/s)</td><td class="v" id="tK">—</td><td class="v">59 ± 3</td></tr>
+              <tr><td>e, circular fit</td><td class="v" id="tE0">—</td><td class="v">0 (fixed)</td></tr>
+              <tr><td>e, if left free</td><td class="v" id="tE1">—</td><td class="v">0.09 ± 0.06</td></tr>
+            </tbody></table></div>
+          <div class="wrap"><table>
+            <thead><tr><th>Parameter</th><th>Simulation</th><th>Paper</th></tr></thead>
+            <tbody>
+              <tr><td>a₁ sin i (10⁵ m)</td><td class="v" id="tA">—</td><td class="v">34 ± 2</td></tr>
+              <tr><td>f₁(m) (10⁻¹⁰ M☉)</td><td class="v" id="tF">—</td><td class="v">0.91 ± 0.15</td></tr>
+              <tr><td>M₂ sin i (M_J)</td><td class="v" id="tM">—</td><td class="v">0.47 ± 0.02</td></tr>
+              <tr><td>r.m.s. O−C (m/s)</td><td class="v" id="tR">—</td><td class="v">13</td></tr>
+            </tbody></table></div>
+        </div>
+        <p class="note">Simulation column: P and K are fitted freely to the 35 points after γ correction. Fig. 2 holds P and K at the paper's values and fits γ only. Dates are approximate and the γ offsets are injected so that the single-γ scatter matches the paper's 24 m/s; the paper does not list either.</p>
+      </div>
+      <div id="tab2" hidden>
+        <h2>Table 2 · 51 Peg compared with the Sun</h2>
+        <div class="wrap"><table>
+          <thead><tr><th>Parameter</th><th>Sun</th><th>Geneva photometry</th><th>Spectroscopy</th><th>Strömgren + spectroscopy</th></tr></thead>
+          <tbody>
+            <tr><td>T_eff (K)</td><td class="v">5,780</td><td class="v">5,773</td><td class="v">5,724</td><td class="v">5,775</td></tr>
+            <tr><td>log g</td><td class="v">4.45</td><td class="v">4.32</td><td class="v">4.30</td><td class="v">4.18</td></tr>
+            <tr><td>[Fe/H]</td><td class="v">0</td><td class="v">–</td><td class="v">0.19</td><td class="v">0.06</td></tr>
+            <tr><td>[M/H]</td><td class="v">0</td><td class="v">0.20</td><td class="v">–</td><td class="v">–</td></tr>
+            <tr><td>M_V</td><td class="v">4.79</td><td class="v">4.60</td><td class="v">–</td><td class="v">–</td></tr>
+            <tr><td>R / R☉</td><td class="v">1</td><td class="v">1.29</td><td class="v">–</td><td class="v">–</td></tr>
+          </tbody></table></div>
+        <p class="note">Values as printed in the paper. The 30-day rotation period of 51 Peg quoted in the text is used for the spin of the sphere; the Sun is shown at about 25 days.</p>
+      </div>
+    </div>
+  </section>
+  <section class="card right" id="plotsWrap"><canvas id="plots" aria-label="Figures 2, 3 and 4 of the paper, redrawn from the simulation"></canvas></section>
+</main>
+
+<footer class="controls">
+  <button type="button" class="btn primary" id="play">Pause</button>
+  <button type="button" class="btn" id="restart">Restart</button>
+  <button type="button" class="btn" id="back" title="Previous step (left arrow)">◀ Step</button>
+  <button type="button" class="btn" id="next" title="Next step (right arrow)">Step ▶</button>
+  <input type="range" id="tl" min="0" max="1000" step="1" value="0" aria-label="Timeline">
+  <span class="time" id="tTime">0.0 s</span>
+  <div class="seg" role="group" aria-label="Jump to">
+    <button type="button" data-j="e0">E1</button>
+    <button type="button" data-j="e1">E2</button>
+    <button type="button" data-j="e2">E3</button>
+    <button type="button" data-j="e3">E4</button>
+    <button type="button" data-j="fig3">Fig. 3</button>
+    <button type="button" data-j="fig4">Fig. 4</button>
+  </div>
+  <select id="spd" aria-label="Speed"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select>
+  <span class="hint">Space play/pause · ← → step · drag the scene to rotate · scroll to zoom</span>
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+'use strict';
+/*LOGIC_START*/
+const CONST={P:4.2293,K:59,SIG:13,T0:797.773,GAMMA_REF:-33.260,A_ORB:0.05*1.496e11,MJ_MSUN:9.546e-4,G:6.674e-11,MSUN:1.989e30};
+const EPOCHS=[
+  {name:'Sep–Nov 1994',short:'Sep–Nov 94',n:5,type:'spread',a:598,b:660},
+  {name:'Jan–Feb 1995',short:'Jan–Feb 95',n:6,type:'spread',a:730,b:770},
+  {name:'Jul 1995',short:'Jul 95',n:12,type:'nights',a:908,nights:8},
+  {name:'Sep 1995',short:'Sep 95',n:12,type:'nights',a:963,nights:8}
+];
+const DRIFT=[0,-17,5,20];          // m/s at drift x1; offsets are illustrative, read roughly off Fig. 3b
+const DRIFT_DEFAULT=1.5;           // x1.5 makes the single-gamma scatter about 24 m/s, as in the paper
+const ZERR=[9,8,5,5];
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function gauss(r){let u=0,v=0;while(u===0)u=r();while(v===0)v=r();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v)}
+function smooth(u){u=Math.max(0,Math.min(1,u));return u*u*(3-2*u)}
+function clamp01(u){return Math.max(0,Math.min(1,u))}
+/* Kepler: phase p = mean anomaly / 2pi, periastron at p = 0 (omega = 0), so the RV maximum sits at T0 */
+function trueAnom(M,e){
+  if(e<1e-9)return M;
+  M=M-2*Math.PI*Math.round(M/(2*Math.PI));
+  let E=M+e*Math.sin(M);
+  for(let i=0;i<10;i++)E-=(E-e*Math.sin(E)-M)/(1-e*Math.cos(E));
+  return 2*Math.atan2(Math.sqrt(1+e)*Math.sin(E/2),Math.sqrt(1-e)*Math.cos(E/2));
+}
+function rvPhase(p,e){const nu=trueAnom(2*Math.PI*p,e||0);return CONST.K*(Math.cos(nu)+(e||0))}
+function modelV(t,e){return rvPhase((t-CONST.T0)/CONST.P,e||0)}
+function makeTimes(){
+  const rt=mulberry32(51),out=[];
+  EPOCHS.forEach((E,k)=>{
+    let ts=[];
+    if(E.type==='spread'){for(let i=0;i<E.n;i++)ts.push(E.a+(E.b-E.a)*rt())}
+    else{
+      const nights=[...Array(E.nights).keys()];
+      for(let i=nights.length-1;i>0;i--){const j=Math.floor(rt()*(i+1));const tmp=nights[i];nights[i]=nights[j];nights[j]=tmp}
+      ts=[...Array(E.nights).keys()].map(n=>E.a+n);
+      nights.slice(0,E.n-E.nights).forEach(n=>ts.push(E.a+n+0.15));
+    }
+    ts.sort((x,y)=>x-y);ts.forEach(t=>out.push({t,ep:k}));
+  });
+  return out;
+}
+const TIMES=makeTimes();
+function makeData(drift,e,seed){
+  const rn=mulberry32(seed||7),rz=mulberry32(99);
+  const obs=TIMES.map(o=>({t:o.t,ep:o.ep,v:modelV(o.t,e)+DRIFT[o.ep]*drift+CONST.SIG*gauss(rn)}));
+  const zero=EPOCHS.map(()=>3.5*gauss(rz));
+  return {obs,zero};
+}
+function solve(A,b){
+  const n=b.length;const M=A.map((r,i)=>r.concat([b[i]]));
+  for(let i=0;i<n;i++){
+    let p=i;for(let r=i+1;r<n;r++)if(Math.abs(M[r][i])>Math.abs(M[p][i]))p=r;
+    const tmp=M[i];M[i]=M[p];M[p]=tmp;
+    for(let r=i+1;r<n;r++){const f=M[r][i]/M[i][i];for(let c=i;c<=n;c++)M[r][c]-=f*M[i][c]}
+  }
+  const x=new Array(n).fill(0);
+  for(let i=n-1;i>=0;i--){let s=M[i][n];for(let c=i+1;c<n;c++)s-=M[i][c]*x[c];x[i]=s/M[i][i]}
+  return x;
+}
+function lsq(rows,y){
+  const m=rows[0].length;const A=Array.from({length:m},()=>new Array(m).fill(0));const b=new Array(m).fill(0);
+  rows.forEach((r,i)=>{for(let a=0;a<m;a++){b[a]+=r[a]*y[i];for(let c=0;c<m;c++)A[a][c]+=r[a]*r[c]}});
+  const x=solve(A,b);let ss=0;
+  rows.forEach((r,i)=>{let p=0;for(let a=0;a<m;a++)p+=r[a]*x[a];ss+=(y[i]-p)*(y[i]-p)});
+  return {x,rms:Math.sqrt(ss/y.length)};
+}
+function fitOrbit(obs,P,perEpoch){
+  const rows=obs.map(o=>{
+    const ph=2*Math.PI*(o.t-CONST.T0)/P;const f=[Math.cos(ph),Math.sin(ph)];
+    if(perEpoch){for(let k=0;k<4;k++)f.push(o.ep===k?1:0)}else f.push(1);
+    return f;
+  });
+  const r=lsq(rows,obs.map(o=>o.v));
+  return {K:Math.hypot(r.x[0],r.x[1]),gammas:r.x.slice(2),rms:r.rms};
+}
+function scanPeriod(obs){
+  let best={rms:1e9};
+  for(let P=3.8;P<=4.8;P+=0.0005){const f=fitOrbit(obs,P,true);if(f.rms<best.rms)best={K:f.K,rms:f.rms,P}}
+  return best;
+}
+function physics(K,P){
+  const Ps=P*86400;const aS=K*Ps/(2*Math.PI);
+  const f=Ps*Math.pow(K,3)/(2*Math.PI*CONST.G)/CONST.MSUN;
+  let m=Math.cbrt(f);for(let i=0;i<40;i++)m=Math.cbrt(f*Math.pow(1+m,2));
+  return {aS,f,m2MJ:m/CONST.MJ_MSUN};
+}
+/* The authors' route: correct gamma per epoch against the circular model, then fit.
+   Leaving e free to first order adds a second harmonic of amplitude K*e. */
+function epochGammas(obs){
+  return EPOCHS.map((E,k)=>{const s=obs.filter(o=>o.ep===k);return s.reduce((a,o)=>a+(o.v-modelV(o.t,0)),0)/s.length});
+}
+function eEstimate(obs){
+  const g=epochGammas(obs);
+  const rows=obs.map(o=>{const ph=2*Math.PI*(o.t-CONST.T0)/CONST.P;return [Math.cos(ph),Math.sin(ph),Math.cos(2*ph),Math.sin(2*ph),1]});
+  const r=lsq(rows,obs.map(o=>o.v-g[o.ep]));
+  return {e:Math.hypot(r.x[2],r.x[3])/Math.hypot(r.x[0],r.x[1]),x:r.x,rms:r.rms};
+}
+function eStats(drift,e,n){
+  const arr=[];
+  for(let i=0;i<n;i++)arr.push(eEstimate(makeData(drift,e,1000+i).obs).e);
+  arr.sort((a,b)=>a-b);
+  const q=p=>arr[Math.min(arr.length-1,Math.floor(p*arr.length))];
+  return {med:q(0.5),lo:q(0.16),hi:q(0.84)};
+}
+function computeDerived(obs){
+  const g=epochGammas(obs);
+  const gam=EPOCHS.map((E,k)=>{
+    const s=obs.filter(o=>o.ep===k);
+    return {g:g[k],err:CONST.SIG/Math.sqrt(s.length),n:s.length,t0:Math.min(...s.map(o=>o.t)),t1:Math.max(...s.map(o=>o.t))};
+  });
+  const rawRms=[],corRms=[];
+  EPOCHS.forEach((E,k)=>{
+    const s=obs.filter(o=>o.ep===k);
+    rawRms.push(Math.sqrt(s.reduce((a,o)=>a+Math.pow(o.v-modelV(o.t,0),2),0)/s.length));
+    corRms.push(Math.sqrt(s.reduce((a,o)=>a+Math.pow(o.v-modelV(o.t,0)-g[k],2),0)/s.length));
+  });
+  const oneG=fitOrbit(obs,CONST.P,false),perE=fitOrbit(obs,CONST.P,true),best=scanPeriod(obs);
+  return {gam,rawRms,corRms,oneG,perE,best,phys:physics(best.K,best.P),ee:eEstimate(obs)};
+}
+function buildShow(obs){
+  const segs=[];let T=0;
+  let jd=obs[0].t-2,phi=(jd-CONST.T0)/CONST.P,synced=true;
+  const push=(s)=>{segs.push(s);T+=s.d};
+  for(let k=0;k<4;k++){
+    obs.forEach((o,j)=>{
+      if(o.ep!==k)return;
+      const t=o.t,dt=t-jd;
+      const natural=synced&&dt<=2.5;
+      let dur,dphi;
+      if(natural){dur=0.25+0.7*dt;dphi=dt/CONST.P}
+      else{
+        dur=Math.min(2.0,1.0+0.3*Math.log(dt/2.5+1));
+        const frac=(((((t-CONST.T0)/CONST.P-phi)%1)+1)%1);
+        const N=Math.max(0,Math.round(dur*1.3-frac));
+        dphi=frac+N;
+      }
+      push({type:'travel',k,j,s:T,d:dur,jd0:jd,jd1:t,phi0:phi,phi1:phi+dphi,ff:!natural});
+      jd=t;phi+=dphi;synced=true;
+      push({type:'hold',k,j,s:T,d:0.45,jd0:jd,jd1:jd,phi0:phi,phi1:phi});
+    });
+    push({type:'fit',k,s:T,d:3.2,jd0:jd,jd1:jd,phi0:phi,phi1:phi+3.2/5});phi+=3.2/5;synced=false;
+  }
+  push({type:'fig3',s:T,d:4.0,jd0:jd,jd1:jd,phi0:phi,phi1:phi+4/5});phi+=4/5;
+  push({type:'gather',s:T,d:5.5,jd0:jd,jd1:jd,phi0:phi,phi1:phi+5.5/5});phi+=5.5/5;
+  push({type:'final',s:T,d:3.5,jd0:jd,jd1:jd,phi0:phi,phi1:phi+3.5/5});
+  return {segs,total:T};
+}
+function buildBeats(show){
+  const b=[];
+  for(let k=0;k<4;k++){
+    let last=null;show.segs.forEach(s=>{if(s.type==='hold'&&s.k===k)last=s});
+    b.push({t:last.s+last.d,label:'E'+(k+1)+' observed'});
+    const f=show.segs.find(s=>s.type==='fit'&&s.k===k);b.push({t:f.s+f.d,label:'E'+(k+1)+' gamma fitted'});
+  }
+  [['fig3','Fig. 3'],['gather','Fig. 4'],['final','Table 1']].forEach(q=>{const s=show.segs.find(x=>x.type===q[0]);b.push({t:s.s+s.d,label:q[1]})});
+  return b;
+}
+function stateAt(show,Tin){
+  const T=Math.max(0,Math.min(show.total,Tin));
+  const f=show.segs[0];
+  const st={T,jd:f.jd0,phi:f.phi0,revealed:0,pulse:1,curObs:-1,phase:'travel',k:0,ff:false,fitP:[0,0,0,0],fig3:0,gather:0,u:0};
+  let count=0;
+  for(const s of show.segs){
+    const end=s.s+s.d;
+    if(T>=end){
+      if(s.type==='hold'){count++;st.curObs=s.j}
+      if(s.type==='fit')st.fitP[s.k]=1;
+      if(s.type==='fig3')st.fig3=1;
+      if(s.type==='gather')st.gather=1;
+      st.jd=s.jd1;st.phi=s.phi1;st.phase=s.type;if(s.k!==undefined)st.k=s.k;st.u=1;
+      continue;
+    }
+    const u=(T-s.s)/s.d;st.u=u;st.phase=s.type;if(s.k!==undefined)st.k=s.k;
+    if(s.type==='travel'){const e=s.ff?smooth(u):u;st.jd=s.jd0+(s.jd1-s.jd0)*e;st.phi=s.phi0+(s.phi1-s.phi0)*e;st.ff=s.ff}
+    else if(s.type==='hold'){count++;st.curObs=s.j;st.pulse=u;st.jd=s.jd1;st.phi=s.phi1}
+    else{
+      st.jd=s.jd1;st.phi=s.phi0+(s.phi1-s.phi0)*u;
+      if(s.type==='fit')st.fitP[s.k]=smooth(u);
+      if(s.type==='fig3')st.fig3=u;
+      if(s.type==='gather')st.gather=u;
+    }
+    break;
+  }
+  st.revealed=count;
+  return st;
+}
+const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function fmtDate(jd){const d=new Date(Date.UTC(1993,0,13)+(jd-0.5)*864e5);return d.getUTCDate()+' '+MONTHS[d.getUTCMonth()]+' '+d.getUTCFullYear()}
+/*LOGIC_END*/
+
+/* ---------------- state ---------------- */
+const $=id=>document.getElementById(id);
+let driftS=DRIFT_DEFAULT,trueE=0,dirty=false;
+let data=makeData(driftS,trueE,7),D=computeDerived(data.obs),EST=eStats(driftS,trueE,300);
+const show=buildShow(data.obs),beats=buildBeats(show);
+const N_OBS=data.obs.length;
+let T=0,playing=true,speed=1,lastNow=performance.now(),stopAt=null;
+let incl=90,mode='orbit',FS=1;
+
+/* ---------------- theme colors for canvas ---------------- */
+let C={};
+function readColors(){
+  const cs=getComputedStyle(document.documentElement),g=n=>cs.getPropertyValue(n).trim();
+  C={text:g('--text'),muted:g('--muted'),line:g('--line'),surface:g('--surface'),surface2:g('--surface2'),accent:g('--accent'),ep:[g('--c1'),g('--c2'),g('--c3'),g('--c4')]};
+}
+readColors();
+const mq=window.matchMedia('(prefers-color-scheme: dark)');
+if(mq.addEventListener)mq.addEventListener('change',readColors);
+new MutationObserver(readColors).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+const MONO="'IBM Plex Mono',ui-monospace,Menlo,monospace",SANS="'IBM Plex Sans',system-ui,sans-serif";
+const fnt=(n,fam,w)=>(w?w+' ':'')+Math.round(n*FS)+'px '+fam;
+
+/* ---------------- three.js scene ---------------- */
+const R_STAR=0.12,R_PL=0.045,WOB=0.046;
+const HAS3D=typeof THREE!=='undefined';
+let renderer,scene3,camera,star,planet,planetRing,wobRing,arrow,obsLine,earth,trail,tpos,gOrbit,gSun,gScale;
+let sunMesh,pegMesh,sunRing,scaleBodies=[],scaleDays=0,ringE=-1,lastT=-1;
+const cam={az:0.9,el:0.5,d:3.7},camT={az:0.9,el:0.5,d:3.7};
+let viewMode='free';
+const nObs=HAS3D?new THREE.Vector3(1,0,0):null;
+const sceneCv=$('scene'),sceneWrap=$('sceneWrap');
+function glowTex(r,g,b){
+  const c=document.createElement('canvas');c.width=c.height=128;const x=c.getContext('2d');
+  const gr=x.createRadialGradient(64,64,0,64,64,64);
+  gr.addColorStop(0,'rgba('+r+','+g+','+b+',1)');gr.addColorStop(.25,'rgba('+r+','+g+','+b+',.45)');gr.addColorStop(1,'rgba('+r+','+g+','+b+',0)');
+  x.fillStyle=gr;x.fillRect(0,0,128,128);return new THREE.CanvasTexture(c);
+}
+function starTex(base,seed){
+  const c=document.createElement('canvas');c.width=512;c.height=256;const x=c.getContext('2d');
+  x.fillStyle=base;x.fillRect(0,0,512,256);
+  const r=mulberry32(seed);
+  for(let i=0;i<900;i++){
+    const px_=r()*512,py=r()*256,rad=3+r()*9;
+    x.fillStyle=r()<.5?'rgba(255,240,200,.10)':'rgba(120,60,10,.10)';
+    x.beginPath();x.ellipse(px_,py,rad*1.6,rad,0,0,Math.PI*2);x.fill();
+  }
+  for(let i=0;i<5;i++){x.fillStyle='rgba(70,30,0,.55)';x.beginPath();x.ellipse(60+r()*390,90+r()*80,5+r()*4,4+r()*3,0,0,Math.PI*2);x.fill()}
+  const t=new THREE.CanvasTexture(c);return t;
+}
+function ringPts(scale,e,sign){
+  const a=[];
+  for(let i=0;i<=256;i++){const nu=i/256*Math.PI*2,r=(1-e*e)/(1+e*Math.cos(nu)),th=nu+Math.PI/2;a.push(new THREE.Vector3(sign*scale*r*Math.cos(th),0,sign*scale*r*Math.sin(th)))}
+  return a;
+}
+function circPts(r,n){const a=[];for(let i=0;i<=n;i++){const t=i/n*Math.PI*2;a.push(new THREE.Vector3(r*Math.cos(t),0,r*Math.sin(t)))}return a}
+if(HAS3D){
+  renderer=new THREE.WebGLRenderer({canvas:sceneCv,antialias:true});
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+  scene3=new THREE.Scene();scene3.background=new THREE.Color(0x04060b);
+  camera=new THREE.PerspectiveCamera(38,1,0.02,200);
+  scene3.add(new THREE.AmbientLight(0x6070a0,0.55));
+  const pl=new THREE.PointLight(0xfff0d0,2.2,0,2);scene3.add(pl);
+  const sp=new Float32Array(900*3);
+  for(let i=0;i<900;i++){const u=Math.random()*2-1,a=Math.random()*Math.PI*2,r=Math.sqrt(1-u*u),R=90+Math.random()*20;sp[i*3]=R*r*Math.cos(a);sp[i*3+1]=R*u;sp[i*3+2]=R*r*Math.sin(a)}
+  const sg=new THREE.BufferGeometry();sg.setAttribute('position',new THREE.BufferAttribute(sp,3));
+  scene3.add(new THREE.Points(sg,new THREE.PointsMaterial({color:0x9fb2d0,size:0.25,sizeAttenuation:true})));
+  /* --- orbit group --- */
+  gOrbit=new THREE.Group();scene3.add(gOrbit);
+  planetRing=new THREE.Line(new THREE.BufferGeometry().setFromPoints(ringPts(1,0,-1)),new THREE.LineBasicMaterial({color:0x44587a}));gOrbit.add(planetRing);
+  wobRing=new THREE.Line(new THREE.BufferGeometry().setFromPoints(ringPts(WOB,0,1)),new THREE.LineBasicMaterial({color:0x9a8240}));gOrbit.add(wobRing);
+  const bc=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-.03,0,0),new THREE.Vector3(.03,0,0),new THREE.Vector3(0,0,-.03),new THREE.Vector3(0,0,.03)]);
+  gOrbit.add(new THREE.LineSegments(bc,new THREE.LineBasicMaterial({color:0xffffff})));
+  star=new THREE.Mesh(new THREE.SphereGeometry(R_STAR,48,32),new THREE.MeshBasicMaterial({color:0xffd27a}));
+  const sg2=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex(255,190,80),blending:THREE.AdditiveBlending,transparent:true,depthWrite:false}));
+  sg2.scale.set(0.95,0.95,1);star.add(sg2);gOrbit.add(star);
+  planet=new THREE.Mesh(new THREE.SphereGeometry(R_PL,32,24),new THREE.MeshStandardMaterial({color:0x4b86d6,emissive:0x2a1204,roughness:.7}));
+  const pg=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex(255,120,40),blending:THREE.AdditiveBlending,transparent:true,depthWrite:false,opacity:.5}));
+  pg.scale.set(0.24,0.24,1);planet.add(pg);gOrbit.add(planet);
+  arrow=new THREE.ArrowHelper(new THREE.Vector3(0,0,1),new THREE.Vector3(0,0,0),0.3,0xff5555,0.07,0.05);gOrbit.add(arrow);
+  obsLine=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineDashedMaterial({color:0x4aa3ff,dashSize:.07,gapSize:.05}));gOrbit.add(obsLine);
+  earth=new THREE.Mesh(new THREE.SphereGeometry(0.06,24,16),new THREE.MeshBasicMaterial({color:0x3d9bff}));gOrbit.add(earth);
+  const TR=56;tpos=new Float32Array(TR*3);
+  const tg=new THREE.BufferGeometry();tg.setAttribute('position',new THREE.BufferAttribute(tpos,3));
+  trail=new THREE.Line(tg,new THREE.LineBasicMaterial({color:0x7db4ff,transparent:true,opacity:.5}));trail.frustumCulled=false;gOrbit.add(trail);
+  /* --- 51 Peg vs Sun group (Table 2) --- */
+  gSun=new THREE.Group();gSun.visible=false;scene3.add(gSun);
+  const RS=0.8,RP=RS*1.29;
+  sunMesh=new THREE.Mesh(new THREE.SphereGeometry(RS,64,48),new THREE.MeshBasicMaterial({map:starTex('#f6c453',3)}));sunMesh.position.set(-1.45,0,0);gSun.add(sunMesh);
+  pegMesh=new THREE.Mesh(new THREE.SphereGeometry(RP,64,48),new THREE.MeshBasicMaterial({map:starTex('#f6c453',11)}));pegMesh.position.set(1.6,0,0);gSun.add(pegMesh);
+  [sunMesh,pegMesh].forEach(m=>{const g=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex(255,190,80),blending:THREE.AdditiveBlending,transparent:true,depthWrite:false,opacity:.7}));g.scale.set(4.6,4.6,1);m.add(g)});
+  sunRing=new THREE.Mesh(new THREE.RingGeometry(RS-0.012,RS,128),new THREE.MeshBasicMaterial({color:0xffffff,side:THREE.DoubleSide,transparent:true,opacity:.9,depthTest:false}));
+  sunRing.renderOrder=5;gSun.add(sunRing);
+  /* --- orbits to scale group (1 unit = 1 AU) --- */
+  gScale=new THREE.Group();gScale.visible=false;scene3.add(gScale);
+  const sun2=new THREE.Mesh(new THREE.SphereGeometry(0.012,32,24),new THREE.MeshBasicMaterial({color:0xffd27a}));
+  const sg3=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex(255,190,80),blending:THREE.AdditiveBlending,transparent:true,depthWrite:false}));sg3.scale.set(0.11,0.11,1);sun2.add(sg3);gScale.add(sun2);
+  [['Mercury',0.387,87.97,0xc8c8c8,0.018,0x4a5a74],['Venus',0.723,224.7,0xe3b66a,0.022,0x4a5a74],['Earth',1.0,365.25,0x3d9bff,0.022,0x4a5a74],['51 Peg b',0.0527,4.2293,0xff7a45,0.014,0xff7a45]].forEach(q=>{
+    const ring=new THREE.Line(new THREE.BufferGeometry().setFromPoints(circPts(q[1],q[0]==='51 Peg b'?96:240)),new THREE.LineBasicMaterial({color:q[5],transparent:true,opacity:q[0]==='51 Peg b'?.95:.8}));gScale.add(ring);
+    const b=new THREE.Mesh(new THREE.SphereGeometry(q[4],20,14),new THREE.MeshBasicMaterial({color:q[3]}));
+    if(q[0]==='51 Peg b'){const g=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex(255,120,40),blending:THREE.AdditiveBlending,transparent:true,depthWrite:false}));g.scale.set(0.06,0.06,1);b.add(g)}
+    gScale.add(b);
+    scaleBodies.push({name:q[0],a:q[1],P:q[2],mesh:b});
+  });
+}else{
+  const m=document.createElement('div');m.className='ov';m.style.cssText='left:50%;top:44%;transform:translate(-50%,-50%);text-align:center;max-width:70%';
+  m.textContent='The 3D scene could not load (three.js is blocked in this view). The figures on the right still run.';sceneWrap.appendChild(m);
+}
+const labs=[];
+for(let i=0;i<5;i++){const d=document.createElement('div');d.className='ov lbl';d.hidden=true;sceneWrap.appendChild(d);labs.push(d)}
+function putLabel(i,v3,text){
+  const el=labs[i];
+  if(!HAS3D){el.hidden=true;return}
+  const v=v3.clone().project(camera);
+  if(v.z>1){el.hidden=true;return}
+  el.hidden=false;if(el._t!==text){el.textContent=text;el._t=text}
+  const hw=el.offsetWidth/2,W=sceneWrap.clientWidth;
+  el.style.left=Math.max(hw+4,Math.min(W-hw-4,(v.x*.5+.5)*W))+'px';el.style.top=((-v.y*.5+.5)*sceneWrap.clientHeight)+'px';
+}
+function hideLabels(from){for(let i=from;i<labs.length;i++)labs[i].hidden=true}
+function setIncl(deg){
+  incl=deg;const r=deg*Math.PI/180;
+  if(!HAS3D)return;
+  nObs.set(Math.sin(r),Math.cos(r),0);
+  obsLine.geometry.setFromPoints([new THREE.Vector3(0,0,0),nObs.clone().multiplyScalar(2.3)]);obsLine.computeLineDistances();
+  earth.position.copy(nObs).multiplyScalar(2.3);
+  if(viewMode==='obs')setView('obs');
+}
+function setView(m){
+  viewMode=m;
+  ['vFree','vObs','vTop'].forEach(id=>$(id).setAttribute('aria-pressed','false'));
+  $({free:'vFree',obs:'vObs',top:'vTop'}[m]).setAttribute('aria-pressed','true');
+  if(m==='free'){camT.az=0.9;camT.el=0.5;camT.d=3.7}
+  if(m==='obs'){camT.az=0;camT.el=Math.min(1.45,Math.asin(Math.cos(incl*Math.PI/180)));camT.d=3.4}
+  if(m==='top'){camT.az=0;camT.el=1.45;camT.d=3.2}
+}
+const MODES={orbit:'mOrbit',sun:'mSun',scale:'mScale'};
+function setMode(m){
+  mode=m;
+  Object.keys(MODES).forEach(k=>$(MODES[k]).setAttribute('aria-pressed',k===m?'true':'false'));
+  if(HAS3D){gOrbit.visible=m==='orbit';gSun.visible=m==='sun';gScale.visible=m==='scale'}
+  $('tab1').hidden=m==='sun';$('tab2').hidden=m!=='sun';
+  ['hud','dopBox','calBox'].forEach(id=>{$(id).hidden=m!=='orbit'});
+  $('leg').hidden=m!=='scale';
+  ['vFree','vObs','vTop'].forEach(id=>{$(id).disabled=m!=='orbit'});
+  if(m==='orbit')setView(viewMode);
+  if(m==='sun'){camT.az=Math.PI/2;camT.el=0.08;camT.d=5.9}
+  if(m==='scale'){camT.az=0.6;camT.el=1.05;camT.d=1.45}
+  if(m!=='orbit'&&playing)setPlay(false);
+  lastCap='';
+  hideLabels(0);
+  sizeScene();
+}
+const wrapA=a=>((a+Math.PI)%(2*Math.PI)+2*Math.PI)%(2*Math.PI)-Math.PI;
+(function dragSetup(){
+  let down=false,lx=0,ly=0;
+  sceneCv.addEventListener('pointerdown',e=>{down=true;lx=e.clientX;ly=e.clientY;sceneCv.setPointerCapture(e.pointerId)});
+  sceneCv.addEventListener('pointermove',e=>{
+    if(!down)return;
+    const dx=e.clientX-lx,dy=e.clientY-ly;lx=e.clientX;ly=e.clientY;
+    camT.az-=dx*0.006;camT.el=Math.max(-1.4,Math.min(1.45,camT.el+dy*0.006));cam.az=camT.az;cam.el=camT.el;
+    if(mode==='orbit'&&viewMode!=='free'){viewMode='free';['vFree','vObs','vTop'].forEach(id=>$(id).setAttribute('aria-pressed',id==='vFree'?'true':'false'))}
+  });
+  const up=()=>{down=false};
+  sceneCv.addEventListener('pointerup',up);sceneCv.addEventListener('pointercancel',up);
+  sceneCv.addEventListener('wheel',e=>{e.preventDefault();camT.d=Math.max(mode==='orbit'?1.8:0.5,Math.min(14,camT.d*Math.exp(e.deltaY*0.001)))},{passive:false});
+})();
+function sizeScene(){
+  const w=sceneWrap.clientWidth,h=sceneWrap.clientHeight;
+  if(HAS3D&&w&&h){renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix()}
+  const cal=$('cal'),dop=$('dop'),dpr=window.devicePixelRatio||1;
+  cal.width=cal.clientWidth*dpr;cal.height=cal.clientHeight*dpr;
+  dop.width=dop.clientWidth*dpr;dop.height=dop.clientHeight*dpr;
+}
+function bodyPos(phi,e){
+  const nu=trueAnom(2*Math.PI*phi,e),r=(1-e*e)/(1+e*Math.cos(nu)),th=nu+Math.PI/2;
+  return {c:Math.cos(th),s:Math.sin(th),r};
+}
+function ensureRings(){
+  if(!HAS3D||ringE===trueE)return;ringE=trueE;
+  planetRing.geometry.setFromPoints(ringPts(1,trueE,-1));wobRing.geometry.setFromPoints(ringPts(WOB,trueE,1));
+}
+function update3D(st,dt){
+  let vr=rvPhase(st.phi,trueE);
+  if(!HAS3D)return vr;
+  if(mode==='orbit'){
+    ensureRings();
+    const b=bodyPos(st.phi,trueE),b2=bodyPos(st.phi+0.003,trueE);
+    star.position.set(WOB*b.r*b.c,0,WOB*b.r*b.s);planet.position.set(-b.r*b.c,0,-b.r*b.s);
+    const dir=new THREE.Vector3(b2.r*b2.c-b.r*b.c,0,b2.r*b2.s-b.r*b.s).normalize();
+    const sinI=Math.sin(incl*Math.PI/180);
+    arrow.position.copy(star.position);arrow.setDirection(dir);
+    arrow.setLength(Math.min(0.9,0.3/sinI),0.07,0.05);arrow.setColor(vr>0?0xff5a4f:0x4f9bff);
+    if(Math.abs(st.T-lastT)>0.4||lastT<0){for(let i=0;i<tpos.length;i+=3){tpos[i]=planet.position.x;tpos[i+1]=0;tpos[i+2]=planet.position.z}}
+    for(let i=tpos.length-1;i>=3;i--)tpos[i]=tpos[i-3];
+    tpos[0]=planet.position.x;tpos[1]=0;tpos[2]=planet.position.z;
+    trail.geometry.attributes.position.needsUpdate=true;
+    const showObs=viewMode!=='obs';earth.visible=showObs;obsLine.visible=showObs;
+  }else if(mode==='sun'){
+    sunMesh.rotation.y+=dt*2*Math.PI/8.3;pegMesh.rotation.y+=dt*2*Math.PI/10;
+  }else{
+    scaleDays+=dt*3;
+    scaleBodies.forEach(b=>{const a=2*Math.PI*scaleDays/b.P;b.mesh.position.set(b.a*Math.cos(a),0,b.a*Math.sin(a))});
+  }
+  cam.az+=wrapA(camT.az-cam.az)*0.1;cam.el+=(camT.el-cam.el)*0.1;cam.d+=(camT.d-cam.d)*0.1;
+  const ce=Math.cos(cam.el),dd=cam.d*(camera.aspect<1.3?1.3/camera.aspect:1);
+  camera.position.set(dd*ce*Math.cos(cam.az),dd*Math.sin(cam.el),dd*ce*Math.sin(cam.az));
+  camera.lookAt(0,0,0);camera.updateMatrixWorld();
+  if(mode==='sun'){
+    sunRing.position.copy(pegMesh.position).add(camera.position.clone().sub(pegMesh.position).normalize().multiplyScalar(0.8*1.29+0.02));
+    sunRing.quaternion.copy(camera.quaternion);
+  }
+  renderer.render(scene3,camera);
+  if(mode==='orbit'){
+    putLabel(0,star.position.clone().add(new THREE.Vector3(0,R_STAR+0.02,0)),'51 Peg');
+    putLabel(1,planet.position.clone().add(new THREE.Vector3(0,0.07,0)),'51 Peg b');
+    if(earth.visible)putLabel(2,earth.position.clone().add(new THREE.Vector3(0,0.09,0)),'to Earth');else labs[2].hidden=true;
+    hideLabels(3);
+  }else if(mode==='sun'){
+    const nw=sceneWrap.clientWidth<520;
+    putLabel(0,sunMesh.position.clone().add(new THREE.Vector3(0,0.8+0.15,0)),nw?'Sun · 1 R☉':'Sun · R = 1 R☉ · T_eff 5,780 K');
+    putLabel(1,pegMesh.position.clone().add(new THREE.Vector3(0,0.8*1.29+0.15,0)),nw?'51 Peg · 1.29 R☉':'51 Peg · R = 1.29 R☉ · T_eff 5,773 K');
+    putLabel(2,pegMesh.position.clone().add(new THREE.Vector3(0,-0.8*1.29-0.2,0)),'white ring = the Sun\'s size');
+    hideLabels(3);
+  }else{
+    hideLabels(0);
+  }
+  return vr;
+}
+
+/* ---------------- Doppler strip + calendar ---------------- */
+function drawDop(vr){
+  const cv=$('dop'),x=cv.getContext('2d'),w=cv.width,h=cv.height,dpr=window.devicePixelRatio||1;
+  x.clearRect(0,0,w,h);
+  const base=h*0.28,depth=h*0.52,cx=w/2+(vr/CONST.K)*w*0.2,sg=w*0.055;
+  x.strokeStyle='rgba(143,161,182,.5)';x.lineWidth=1*dpr;x.beginPath();x.moveTo(w/2,0);x.lineTo(w/2,h);x.setLineDash([3*dpr,3*dpr]);x.stroke();x.setLineDash([]);
+  x.strokeStyle=vr>0?'#ff6a5f':'#5aa9ff';x.lineWidth=2*dpr;x.beginPath();
+  for(let i=0;i<=w;i+=2){const y=base+depth*(1-Math.exp(-Math.pow(i-cx,2)/(2*sg*sg)));if(i===0)x.moveTo(i,y);else x.lineTo(i,y)}
+  x.stroke();
+}
+function drawCal(st){
+  const cv=$('cal'),x=cv.getContext('2d'),w=cv.width,h=cv.height,dpr=window.devicePixelRatio||1;
+  x.clearRect(0,0,w,h);
+  const j0=585,j1=985,X=jd=>(jd-j0)/(j1-j0)*w;
+  x.fillStyle='rgba(8,12,20,.72)';x.fillRect(0,0,w,h);
+  const by=h*0.38,bh=h*0.22;
+  x.strokeStyle='rgba(143,161,182,.45)';x.lineWidth=dpr;x.beginPath();x.moveTo(0,by+bh/2);x.lineTo(w,by+bh/2);x.stroke();
+  x.font=(10*dpr)+'px '+SANS;x.textBaseline='top';x.textAlign='center';
+  EPOCHS.forEach((E,k)=>{
+    const s=data.obs.filter(o=>o.ep===k),a=Math.min(...s.map(o=>o.t))-1.5,b=Math.max(...s.map(o=>o.t))+1.5;
+    x.fillStyle=C.ep[k];x.globalAlpha=.9;x.fillRect(X(a),by,Math.max(4*dpr,X(b)-X(a)),bh);x.globalAlpha=1;
+    const hw=x.measureText(E.short).width/2;
+    x.fillStyle='#8fa1b6';x.fillText(E.short,Math.max(hw+2*dpr,Math.min(w-hw-2*dpr,(X(a)+X(b))/2)),by+bh+3*dpr);
+  });
+  const mx=X(st.jd);x.fillStyle='#ffffff';x.beginPath();x.moveTo(mx,by-2*dpr);x.lineTo(mx-4*dpr,by-9*dpr);x.lineTo(mx+4*dpr,by-9*dpr);x.closePath();x.fill();
+}
+
+/* ---------------- plots on one canvas ---------------- */
+const pc=$('plots'),px=pc.getContext('2d'),pw=$('plotsWrap');
+let PW=0,PH=0;
+function sizePlots(){
+  const dpr=window.devicePixelRatio||1;PW=pw.clientWidth;PH=pw.clientHeight;
+  pc.width=Math.round(PW*dpr);pc.height=Math.round(PH*dpr);
+}
+function rr(x,y,w,h,r){px.beginPath();px.moveTo(x+r,y);px.arcTo(x+w,y,x+w,y+h,r);px.arcTo(x+w,y+h,x,y+h,r);px.arcTo(x,y+h,x,y,r);px.arcTo(x,y,x+w,y,r);px.closePath()}
+function mkAx(x,y,w,h,x0,x1,y0,y1){return {x,y,w,h,x0,x1,y0,y1,X:v=>x+(v-x0)/(x1-x0)*w,Y:v=>y+h-(v-y0)/(y1-y0)*h}}
+function drawAx(ax,xt,yt,xf,yf,showX){
+  px.lineWidth=1;px.font=fnt(10,MONO);px.fillStyle=C.muted;
+  yt.forEach(v=>{const y=ax.Y(v);px.globalAlpha=.55;px.strokeStyle=C.line;px.beginPath();px.moveTo(ax.x,y);px.lineTo(ax.x+ax.w,y);px.stroke();px.globalAlpha=1;
+    px.textAlign='right';px.textBaseline='middle';px.fillText(yf?yf(v):String(v),ax.x-4,y)});
+  xt.forEach(v=>{const x=ax.X(v);px.globalAlpha=.3;px.strokeStyle=C.line;px.beginPath();px.moveTo(x,ax.y);px.lineTo(x,ax.y+ax.h);px.stroke();px.globalAlpha=1;
+    if(showX){px.textAlign='center';px.textBaseline='top';px.fillText(xf?xf(v):String(v),x,ax.y+ax.h+3)}});
+  px.strokeStyle=C.muted;px.globalAlpha=.8;px.strokeRect(ax.x+.5,ax.y+.5,ax.w,ax.h);px.globalAlpha=1;
+}
+function dot(x,y,col,a,r,errPx){
+  px.globalAlpha=a;
+  if(errPx){px.strokeStyle=col;px.lineWidth=1.2;px.beginPath();px.moveTo(x,y-errPx);px.lineTo(x,y+errPx);px.stroke()}
+  px.fillStyle=col;px.beginPath();px.arc(x,y,r||3.2,0,Math.PI*2);px.fill();px.globalAlpha=1;
+}
+function card(x,y,w,h,title,subs,active){
+  px.fillStyle=C.surface;rr(x+.5,y+.5,w-1,h-1,6);px.fill();
+  px.strokeStyle=active?C.accent:C.line;px.lineWidth=active?2:1;rr(x+.5,y+.5,w-1,h-1,6);px.stroke();px.lineWidth=1;
+  px.fillStyle=C.text;px.font=fnt(12,SANS,600);px.textAlign='left';px.textBaseline='top';px.fillText(title,x+10,y+8);
+  const tw=px.measureText(title).width;
+  px.font=fnt(11,SANS);
+  for(const s of subs){if(!s)continue;if(tw+20+px.measureText(s).width<w-20){px.fillStyle=C.muted;px.fillText(s,x+10+tw+10,y+9);break}}
+}
+function curve(ax,alpha,col){
+  px.globalAlpha=alpha;px.strokeStyle=col;px.lineWidth=1.6;px.beginPath();
+  for(let i=0;i<=80;i++){const p=i/80,v=CONST.K*Math.cos(2*Math.PI*p);if(i===0)px.moveTo(ax.X(p),ax.Y(v));else px.lineTo(ax.X(p),ax.Y(v))}
+  px.stroke();px.globalAlpha=1;px.lineWidth=1;
+}
+function curveE(ax,x,alpha,col){
+  px.globalAlpha=alpha;px.strokeStyle=col;px.lineWidth=1.8;px.setLineDash([5,4]);px.beginPath();
+  for(let i=0;i<=120;i++){const p=i/120,a=2*Math.PI*p,v=x[0]*Math.cos(a)+x[1]*Math.sin(a)+x[2]*Math.cos(2*a)+x[3]*Math.sin(2*a)+x[4];if(i===0)px.moveTo(ax.X(p),ax.Y(v));else px.lineTo(ax.X(p),ax.Y(v))}
+  px.stroke();px.setLineDash([]);px.globalAlpha=1;px.lineWidth=1;
+}
+function wrapText(str,maxW){
+  const words=str.split(' '),lines=[];let cur='';
+  words.forEach(w=>{const t=cur?cur+' '+w:w;if(px.measureText(t).width>maxW&&cur){lines.push(cur);cur=w}else cur=t});
+  if(cur)lines.push(cur);return lines;
+}
+const ph1=o=>(((o.t-CONST.T0)/CONST.P)%1+1)%1;
+function drawPlots(st){
+  const dpr=window.devicePixelRatio||1;
+  px.setTransform(dpr,0,0,dpr,0,0);px.clearRect(0,0,PW,PH);
+  if(!PW||!PH)return;
+  const narrow=PW<520;
+  const g=8,h2=Math.round(PH*(FS>1?0.38:0.40)),h3=Math.round(PH*(FS>1?0.24:0.22)),h4=PH-h2-h3-2*g;
+  const y3=h2+g,y4=h2+h3+2*g;
+  const inFit=st.phase==='fit';
+  card(0,0,PW,h2,'Fig. 2',['Radial velocity at four epochs, γ fitted per epoch','RV at four epochs'],['travel','hold','fit'].includes(st.phase));
+  card(0,y3,PW,h3,'Fig. 3',['ELODIE zero point (a) and γ-velocity (b)','zero point and γ'],st.phase==='fig3'||(inFit&&st.fitP[st.k]>0.6));
+  card(0,y4,PW,h4,'Fig. 4',['Orbit after removing the γ variation (colours as Fig. 2)','Orbit after γ correction'],st.phase==='gather'||st.phase==='final');
+  // ---- Fig 2
+  const padT=Math.round(30*FS),padB=Math.round(18*FS),gx=10,gy=6,yl=Math.round(13*FS),axl=Math.round(34*FS);
+  const pwid=(PW-20-gx)/2,phei=(h2-padT-padB-gy)/2;
+  const ax2=[];
+  for(let k=0;k<4;k++){
+    const col=k%2,row=Math.floor(k/2);
+    const x=10+col*(pwid+gx)+axl,y=padT+row*(phei+gy);
+    ax2.push(mkAx(x,y+yl,pwid-axl-4,phei-yl-(row===1?Math.round(14*FS):0),0,1,-130,130));
+  }
+  ax2.forEach((ax,k)=>{
+    drawAx(ax,[0,0.5,1],[-100,0,100],v=>v.toFixed(1).replace(/\.0$/,''),null,Math.floor(k/2)===1);
+    px.fillStyle=C.ep[k];px.font=fnt(11,SANS,600);px.textAlign='left';px.textBaseline='bottom';
+    px.fillText(narrow?'E'+(k+1)+' · n='+D.gam[k].n:'E'+(k+1)+' · '+EPOCHS[k].short+' · n='+D.gam[k].n,ax.x,ax.y-1);
+    if(st.fitP[k]>0.2){
+      px.globalAlpha=clamp01((st.fitP[k]-0.2)/0.4);px.fillStyle=C.text;px.font=fnt(11,MONO);px.textAlign='right';
+      const gv=D.gam[k].g;px.fillText((narrow?'γ ':'γ = ')+(gv>=0?'+':'')+gv.toFixed(0)+(narrow?'':' m/s'),ax.x+ax.w-4,ax.y-1);px.globalAlpha=1;
+    }
+    if(st.fitP[k]>=1){
+      px.fillStyle=C.muted;px.font=fnt(10,MONO);px.textAlign='left';px.textBaseline='bottom';
+      px.fillText('r.m.s. '+D.rawRms[k].toFixed(0)+' → '+D.corRms[k].toFixed(0),ax.x+4,ax.y+ax.h-3);
+    }
+    curve(ax,0.9,C.muted);
+  });
+  if((st.phase==='travel'||st.phase==='hold')&&st.k>=0){
+    const ax=ax2[st.k],p=((st.phi%1)+1)%1,v=rvPhase(p,trueE);
+    px.strokeStyle=C.accent;px.globalAlpha=.6;px.setLineDash([2,3]);px.beginPath();px.moveTo(ax.X(p),ax.y);px.lineTo(ax.X(p),ax.y+ax.h);px.stroke();px.setLineDash([]);px.globalAlpha=1;
+    px.strokeStyle=C.accent;px.lineWidth=2;px.beginPath();px.arc(ax.X(p),ax.Y(v),5.5,0,Math.PI*2);px.stroke();px.lineWidth=1;
+  }
+  const N=Math.min(st.revealed,N_OBS);
+  const sigPx=ax=>CONST.SIG/(ax.y1-ax.y0)*ax.h;
+  const gp=st.gather;
+  for(let i=0;i<N;i++){
+    const o=data.obs[i],k=o.ep,ax=ax2[k],p=ph1(o);
+    const v=o.v-st.fitP[k]*D.gam[k].g;
+    let a=1;
+    if(gp>0){const q=smooth(clamp01((gp-0.55*i/N_OBS)/0.45));a=1-0.75*q}
+    dot(ax.X(p),ax.Y(v),C.ep[k],a,3.2,sigPx(ax));
+    if(i===st.curObs&&st.phase==='hold'){
+      px.strokeStyle=C.ep[k];px.globalAlpha=1-st.pulse;px.lineWidth=2;px.beginPath();px.arc(ax.X(p),ax.Y(v),3.2+st.pulse*13,0,Math.PI*2);px.stroke();px.globalAlpha=1;px.lineWidth=1;
+    }
+  }
+  // ---- Fig 3
+  const half=(PW-20-gx)/2,t3=Math.round(42*FS),top3=y3+t3,hh=h3-t3-Math.round(28*FS);
+  const a3=mkAx(10+Math.round(34*FS),top3,half-Math.round(34*FS)-4,hh,590,1000,-40,40);
+  const b3=mkAx(10+half+gx+Math.round(46*FS),top3,half-Math.round(46*FS)-4,hh,590,1000,-33.30,-33.22);
+  drawAx(a3,[600,700,800,900,1000],[-40,0,40],null,null,true);
+  drawAx(b3,[600,700,800,900,1000],[-33.28,-33.26,-33.24,-33.22],null,v=>v.toFixed(2),true);
+  px.fillStyle=C.muted;px.font=fnt(10.5,SANS);px.textAlign='left';px.textBaseline='bottom';
+  px.fillText(narrow?'a · zero point (m/s)':'a · zero point from 87 constant stars (m/s)',a3.x,a3.y-2);
+  px.fillText(narrow?'b · γ (km/s)':'b · γ-velocity of 51 Peg (km/s)',b3.x,b3.y-2);
+  px.textAlign='center';px.textBaseline='top';
+  px.fillText('JD − 2449000 (days)',a3.x+a3.w/2,a3.y+a3.h+Math.round(16*FS));px.fillText('JD − 2449000 (days)',b3.x+b3.w/2,b3.y+b3.h+Math.round(16*FS));
+  px.strokeStyle=C.muted;px.globalAlpha=.6;px.setLineDash([2,3]);px.beginPath();px.moveTo(a3.x,a3.Y(0));px.lineTo(a3.x+a3.w,a3.Y(0));px.stroke();px.setLineDash([]);px.globalAlpha=1;
+  for(let k=0;k<4;k++){
+    const a=clamp01((st.fitP[k]-0.5)/0.5);if(a<=0)continue;
+    const gm=D.gam[k],xc=(gm.t0+gm.t1)/2;
+    const gAbs=CONST.GAMMA_REF+gm.g/1000;
+    [[a3,data.zero[k],ZERR[k]],[b3,gAbs,gm.err/1000]].forEach(q=>{
+      const ax=q[0],y=ax.Y(q[1]),ey=Math.abs(ax.Y(q[1]+q[2])-y);
+      px.globalAlpha=a;px.strokeStyle=C.ep[k];px.lineWidth=1.3;
+      px.beginPath();px.moveTo(ax.X(gm.t0-2),y);px.lineTo(ax.X(gm.t1+2),y);px.stroke();
+      px.beginPath();px.moveTo(ax.X(xc),y-ey);px.lineTo(ax.X(xc),y+ey);px.stroke();
+      px.fillStyle=C.ep[k];px.beginPath();px.arc(ax.X(xc),y,3.4,0,Math.PI*2);px.fill();px.globalAlpha=1;px.lineWidth=1;
+    });
+  }
+  // ---- Fig 4
+  const statsStr='r.m.s. '+D.best.rms.toFixed(1)+' m/s, N = '+N_OBS+' · single γ '+D.oneG.rms.toFixed(1)+' → γ per epoch '+D.perE.rms.toFixed(1)+' m/s (paper 24 → 13) · dashed, e free: ê = '+D.ee.e.toFixed(2)+' (68% range from noise '+EST.lo.toFixed(2)+'–'+EST.hi.toFixed(2)+', paper 0.09 ± 0.06)';
+  px.font=fnt(11,MONO);
+  const lines=gp>=1?wrapText(statsStr,PW-24):[];
+  const lh=Math.round(14*FS),hdr=Math.round(28*FS)+lines.length*lh;
+  const axL=Math.round(54*FS),ax4=mkAx(axL,y4+hdr,PW-axL-12,h4-hdr-Math.round(34*FS),0,1,-115,115);
+  drawAx(ax4,[0,0.25,0.5,0.75,1],[-100,-50,0,50,100],v=>v.toFixed(2).replace(/0+$/,'').replace(/\.$/,''),null,true);
+  px.fillStyle=C.muted;px.font=fnt(10.5,SANS);px.textAlign='center';px.textBaseline='top';px.fillText('Orbital phase',ax4.x+ax4.w/2,ax4.y+ax4.h+Math.round(17*FS));
+  px.save();px.translate(14,ax4.y+ax4.h/2);px.rotate(-Math.PI/2);px.textAlign='center';px.textBaseline='top';px.fillText('V_r (m/s)',0,0);px.restore();
+  if(gp<=0){
+    px.fillStyle=C.muted;px.font=fnt(12,SANS);px.textAlign='center';px.textBaseline='middle';
+    px.fillText('Waiting for the γ-corrected points from Fig. 2',ax4.x+ax4.w/2,ax4.y+ax4.h/2);
+  }else{
+    curve(ax4,clamp01(gp*2),C.text);
+    for(let i=0;i<N_OBS;i++){
+      const o=data.obs[i],k=o.ep,p=ph1(o),vc=o.v-D.gam[k].g;
+      const q=smooth(clamp01((gp-0.55*i/N_OBS)/0.45));if(q<=0)continue;
+      const fx=ax2[k].X(p),fy=ax2[k].Y(vc),tx=ax4.X(p),ty=ax4.Y(vc);
+      dot(fx+(tx-fx)*q,fy+(ty-fy)*q,C.ep[k],1,3.4,q>=1?sigPx(ax4):0);
+    }
+    if(gp>=1)curveE(ax4,D.ee.x,1,C.accent);
+  }
+  if(gp>=1){
+    px.fillStyle=C.text;px.font=fnt(11,MONO);px.textAlign='left';px.textBaseline='top';
+    lines.forEach((l,i)=>px.fillText(l,12,y4+Math.round(26*FS)+i*lh));
+  }
+}
+
+/* ---------------- HUD, caption, table ---------------- */
+let lastCap='';
+function caption(st){
+  if(mode==='sun')return '51 Peg is a solar-type star with the Sun\'s temperature: 5,773 K against 5,780 K. It is 29% larger (1.29 R☉), 0.19 mag brighter in V and richer in heavy elements ([M/H] = +0.20). Drag to rotate; the show is paused.';
+  if(mode==='scale')return '51 Peg b circles its star every 4.23 days at 0.05 AU, about 7 times closer than Mercury (0.39 AU, 88 days). Bodies are enlarged; orbit radii are to scale. Time runs at 3 days per second. Scroll to zoom out to Earth\'s orbit.';
+  const E=EPOCHS[Math.max(0,Math.min(3,st.k))];
+  const noDrift=driftS<0.05;
+  switch(st.phase){
+    case 'travel':
+      return st.ff?'Time is compressed. Weeks pass between observing runs and the companion keeps orbiting every 4.23 days.'
+        :E.name+' · each flash is one ELODIE exposure. The point lands in Fig. 2 at the orbital phase the planet has just reached.';
+    case 'hold':return E.name+' · each flash is one ELODIE exposure. The point lands in Fig. 2 at the orbital phase the planet has just reached.';
+    case 'fit':return 'Fit for '+E.short+': K, P and T are fixed from Table 1, only γ is free. The whole panel slides by γ = '+(D.gam[st.k].g>=0?'+':'')+D.gam[st.k].g.toFixed(0)+' m/s.';
+    case 'fig3':{
+      const gs=D.gam.map(x=>x.g),sp=Math.max(...gs)-Math.min(...gs);
+      return noDrift?'No drift was injected, so γ per epoch stays within the noise (spread '+sp.toFixed(0)+' m/s) and Fig. 3b is flat like Fig. 3a.'
+        :'Fig. 3: γ changes by '+sp.toFixed(0)+' m/s between epochs (b) while the zero point of ELODIE, measured on 87 constant stars, stays flat (a). The authors read this as a second companion.';}
+    case 'gather':return 'Subtract each epoch\'s γ and stack all '+N_OBS+' points by orbital phase. This is Fig. 4.';
+    case 'final':{
+      let s=noDrift?'No drift: one γ gives '+D.oneG.rms.toFixed(1)+' m/s and γ per epoch '+D.perE.rms.toFixed(1)+' m/s. Extra free parameters alone barely change the scatter.'
+        :'One γ leaves '+D.oneG.rms.toFixed(1)+' m/s of scatter, γ per epoch '+D.perE.rms.toFixed(1)+' m/s. The residual is about the 13 m/s instrument precision.';
+      s+=trueE>0.02?' Injected e = '+trueE.toFixed(2)+'; an e-free fit recovers ê = '+D.ee.e.toFixed(2)+'.':' Leaving e free gives ê = '+D.ee.e.toFixed(2)+', within the noise of zero, as in the paper (0.09 ± 0.06).';
+      return s;}
+  }
+  return '';
+}
+const hDate=$('hDate'),hEp=$('hEp'),hVr=$('hVr'),hN=$('hN'),capEl=$('cap'),flash=$('flash'),tl=$('tl'),tTime=$('tTime'),hScale=$('hScale');
+function updateHud(st,vr){
+  if(mode==='orbit'){
+    hDate.textContent=fmtDate(st.jd);
+    const E=EPOCHS[Math.max(0,Math.min(3,st.k))];
+    hEp.textContent=(st.phase==='gather'||st.phase==='final'||st.phase==='fig3')?'All four epochs':('E'+(st.k+1)+' · '+E.name+(st.ff?'  ·  fast-forward':''));
+    const word=Math.abs(vr)<3?'sideways':(vr>0?'receding':'approaching');
+    hVr.textContent='V_r = '+(vr>=0?'+':'')+vr.toFixed(0)+' m/s '+word;
+    hVr.style.color=Math.abs(vr)<3?'':(vr>0?'#ff7a70':'#6db3ff');
+    hN.textContent='N = '+Math.min(st.revealed,N_OBS)+' / '+N_OBS;
+    flash.style.opacity=st.phase==='hold'?String(Math.max(0,1-st.u*4)*0.22):'0';
+    hScale.textContent='Orbit (0.05 AU) and star radius to scale · planet enlarged · wobble ×100'+(trueE>0.005?' · e = '+trueE.toFixed(2):'');
+  }else{
+    flash.style.opacity='0';
+    hScale.textContent=mode==='sun'?'Radii to scale · spin: Sun about 25 d, 51 Peg about 30 d':'Bodies enlarged · orbit radii to scale';
+  }
+  const c=caption(st);if(c!==lastCap){capEl.textContent=c;lastCap=c}
+}
+function updateTable(st){
+  const on=st.gather>=1||st.phase==='final';
+  const B=D.best,P=D.phys;
+  const v=on?[B.P.toFixed(4),B.K.toFixed(1),'0 (fixed)','ê = '+D.ee.e.toFixed(2),(P.aS/1e5).toFixed(0),(P.f*1e10).toFixed(2),P.m2MJ.toFixed(2),B.rms.toFixed(1)]:['—','—','—','—','—','—','—','—'];
+  ['tP','tK','tE0','tE1','tA','tF','tM','tR'].forEach((id,i)=>{const el=$(id);if(el.textContent!==v[i])el.textContent=v[i]});
+}
+
+/* ---------------- transport ---------------- */
+const marks={};
+show.segs.forEach(s=>{
+  if(s.type==='travel'&&marks['e'+s.k]===undefined)marks['e'+s.k]=s.s;
+  if(s.type==='fig3')marks.fig3=s.s;
+  if(s.type==='gather')marks.fig4=s.s;
+});
+tl.max=String(Math.round(show.total*100));
+function setPlay(p){playing=p;if(p&&stopAt!==null&&T>=stopAt)stopAt=null;$('play').textContent=p?'Pause':(T>=show.total-0.01?'Replay':'Play')}
+$('play').addEventListener('click',()=>{stopAt=null;if(!playing&&T>=show.total-0.01)T=0;if(mode!=='orbit')setMode('orbit');setPlay(!playing)});
+$('restart').addEventListener('click',()=>{stopAt=null;T=0;if(mode!=='orbit')setMode('orbit');setPlay(true)});
+function stepNext(){
+  if(mode!=='orbit')setMode('orbit');
+  const nb=beats.find(b=>b.t>T+0.05);
+  if(!nb){T=show.total;setPlay(false);return}
+  stopAt=nb.t;playing=true;$('play').textContent='Pause';
+}
+function stepBack(){
+  if(mode!=='orbit')setMode('orbit');
+  stopAt=null;
+  let prev=0;beats.forEach(b=>{if(b.t<T-0.4)prev=b.t});
+  T=prev;setPlay(false);
+}
+$('next').addEventListener('click',stepNext);
+$('back').addEventListener('click',stepBack);
+tl.addEventListener('input',()=>{stopAt=null;T=Number(tl.value)/100});
+$('spd').addEventListener('change',e=>{speed=Number(e.target.value)});
+document.querySelectorAll('[data-j]').forEach(b=>b.addEventListener('click',()=>{stopAt=null;if(mode!=='orbit')setMode('orbit');T=Math.max(0,marks[b.dataset.j]-0.05);setPlay(true)}));
+$('mOrbit').addEventListener('click',()=>setMode('orbit'));
+$('mSun').addEventListener('click',()=>setMode('sun'));
+$('mScale').addEventListener('click',()=>setMode('scale'));
+$('vFree').addEventListener('click',()=>setView('free'));
+$('vObs').addEventListener('click',()=>setView('obs'));
+$('vTop').addEventListener('click',()=>setView('top'));
+function labelsOut(){
+  $('driftOut').textContent=driftS<0.05?'none':'×'+driftS.toFixed(1);
+  $('eccOut').textContent=trueE<0.005?'0':'e = '+trueE.toFixed(2);
+  $('drift').title='×1.5 gives a single-γ scatter of about 24 m/s, as in the paper. 0 is the no-drift control.';
+  $('ecc').title='The simulated orbit gets this eccentricity. The paper fixes e = 0 and finds 0.09 ± 0.06 when it is left free.';
+}
+$('drift').addEventListener('input',e=>{driftS=Number(e.target.value);dirty=true;labelsOut()});
+$('ecc').addEventListener('input',e=>{trueE=Number(e.target.value);dirty=true;labelsOut()});
+function applyPres(){
+  const on=document.body.classList.contains('pres');
+  const u=on?(window.innerWidth>=1700?1.28:1.12):1;
+  document.body.style.setProperty('--u',String(u));FS=u;
+}
+$('presBtn').addEventListener('click',()=>{
+  const on=!document.body.classList.contains('pres');
+  document.body.classList.toggle('pres',on);applyPres();$('presBtn').setAttribute('aria-pressed',String(on));
+  requestAnimationFrame(resizeAll);
+});
+if(document.fullscreenEnabled){
+  $('fsBtn').hidden=false;
+  $('fsBtn').addEventListener('click',()=>{
+    try{
+      if(document.fullscreenElement)document.exitFullscreen();
+      else{const p=document.documentElement.requestFullscreen();if(p&&p.catch)p.catch(()=>{})}
+    }catch(err){}
+  });
+}
+document.addEventListener('keydown',e=>{
+  const tg=e.target&&e.target.tagName;
+  if(tg==='INPUT'||tg==='SELECT')return;
+  if(e.code==='Space'){if(tg==='BUTTON')return;e.preventDefault();$('play').click()}
+  else if(e.code==='ArrowRight'){e.preventDefault();stepNext()}
+  else if(e.code==='ArrowLeft'){e.preventDefault();stepBack()}
+});
+
+/* ---------------- init + loop ---------------- */
+setIncl(90);setView('free');setMode('orbit');labelsOut();
+function resizeAll(){sizeScene();sizePlots()}
+if(window.ResizeObserver){const ro=new ResizeObserver(resizeAll);ro.observe(sceneWrap);ro.observe(pw)}
+window.addEventListener('resize',()=>{if(document.body.classList.contains('pres'))applyPres();resizeAll()});
+resizeAll();
+function recompute(){
+  data=makeData(driftS,trueE,7);D=computeDerived(data.obs);EST=eStats(driftS,trueE,300);lastCap='';
+}
+function loop(now){
+  const dt=Math.min(0.1,(now-lastNow)/1000);lastNow=now;
+  if(dirty){recompute();dirty=false}
+  if(playing){
+    T+=dt*speed;
+    if(stopAt!==null&&T>=stopAt){T=stopAt;stopAt=null;setPlay(false)}
+    if(T>=show.total){T=show.total;stopAt=null;setPlay(false)}
+  }
+  const si=beats.filter(b=>b.t<=T+0.02).length;
+  tl.value=String(Math.round(T*100));tTime.textContent='step '+si+'/'+beats.length+' · '+T.toFixed(1)+' s';
+  const st=stateAt(show,T);
+  const vr=update3D(st,dt);
+  lastT=st.T;
+  if(mode==='orbit'){drawDop(vr);drawCal(st)}
+  drawPlots(st);updateHud(st,vr);updateTable(st);
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+})();
+</script>
+
+</body></html>
